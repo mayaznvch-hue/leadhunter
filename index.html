@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>LeadHunter · Москва и МО</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--bd:#2a2f3a;--fg:#e8eaf0;--mut:#8b93a6;--ac:#f08a24;--ok:#3ecf8e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:#0f1115ee;backdrop-filter:blur(8px);border-bottom:1px solid var(--bd);padding:10px 14px}
+h1{font-size:18px;margin:0 0 8px}h1 small{color:var(--mut);font-weight:400;font-size:12px;margin-left:6px}
+.bar{display:flex;flex-wrap:wrap;gap:6px}input,select,button{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font:inherit}
+input[type=search]{flex:1 1 220px}button{cursor:pointer}button.pri{background:var(--ac);border-color:var(--ac);color:#111;font-weight:600}
+.tabs{display:flex;gap:6px;margin-top:8px;overflow-x:auto}.tab{white-space:nowrap;padding:6px 10px;border-radius:999px;border:1px solid var(--bd);cursor:pointer;color:var(--mut)}
+.tab.on{background:var(--ac);color:#111;border-color:var(--ac)}main{padding:12px 14px;max-width:1100px;margin:auto}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.t{font-weight:600}.sc{background:#2a2f3a;border-radius:6px;padding:2px 7px;font-size:12px;white-space:nowrap}
+.meta{color:var(--mut);font-size:12px;margin:3px 0}.ct{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.ct a,.ct span{background:#0f1115;border:1px solid var(--bd);border-radius:6px;padding:3px 8px;color:var(--fg);text-decoration:none;font-size:13px}
+.sv{color:var(--ok);font-size:13px}.b{color:#c8ccd6;font-size:13px;margin-top:4px}details{margin-top:6px}summary{cursor:pointer;color:var(--ac);font-size:13px}
+.l{white-space:pre-wrap;background:#0f1115;border-radius:8px;padding:8px;margin-top:6px;font-size:13px}
+#lock{max-width:360px;margin:18vh auto;text-align:center}#lock input{width:100%;margin:10px 0}.err{color:#ff6b6b}.cnt{color:var(--mut);margin:0 0 8px}
+</style></head><body>
+<div id="lock"><h2>LeadHunter</h2><p class="meta">База закрыта паролем</p>
+<input id="pw" type="password" placeholder="Пароль" autofocus><button class="pri" id="go" style="width:100%">Открыть</button><p id="e" class="err"></p></div>
+<div id="app" hidden>
+<header><h1>LeadHunter <small id="upd"></small></h1>
+<div class="bar"><input type="search" id="q" placeholder="Поиск: ниша, город, услуга, почта…">
+<select id="sv"><option value="">Все услуги</option></select>
+<select id="ct"><option value="">Любой контакт</option><option value="e">Есть e-mail</option><option value="ph">Есть телефон</option><option value="tg">Есть Telegram</option></select>
+<button id="csv">Скачать CSV</button></div>
+<div class="tabs" id="tabs"></div></header>
+<main><p class="cnt" id="cnt"></p><div id="list"></div><button id="more" hidden style="width:100%">Показать ещё</button></main></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));let R=[],F=[],shown=0,tab='';
+const TABS=[['','Все'],['new','Новые 24ч'],['Прямой запрос','Прямые запросы'],['Потенциальный клиент (бизнес)','Бизнес МСК-МО'],['Госзаказ (тендер/запрос цен)','Госзаказы']];
+async function open_(){const pw=$('#pw').value;$('#e').textContent='';try{
+ const d=await (await fetch('data.json?t='+Date.now())).json();
+ const k0=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+ const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(d.salt),iterations:d.iter,hash:'SHA-256'},k0,{name:'AES-GCM',length:256},false,['decrypt']);
+ const j=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(d.iv)},k,b64(d.ct))));
+ localStorage.lhpw=pw;R=j.rows;$('#upd').textContent='обновлено '+j.updated+' · '+R.length+' лидов';init();
+}catch(x){$('#e').textContent='Неверный пароль';localStorage.removeItem('lhpw')}}
+function init(){$('#lock').hidden=true;$('#app').hidden=false;
+ const S=new Set();R.forEach(r=>(r.sv||'').split('|').forEach(x=>x&&S.add(x)));[...S].sort().forEach(s=>$('#sv').insertAdjacentHTML('beforeend',`<option>${esc(s)}</option>`));
+ $('#tabs').innerHTML=TABS.map(([v,n])=>`<span class="tab${v==tab?' on':''}" data-v="${v}">${n}</span>`).join('');
+ $('#tabs').onclick=e=>{const v=e.target.dataset.v;if(v===undefined)return;tab=v;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.v==v));filt()};
+ ['#q','#sv','#ct'].forEach(s=>$(s).oninput=filt);filt()}
+function filt(){const q=$('#q').value.toLowerCase(),sv=$('#sv').value,ct=$('#ct').value;
+ const day=new Date(Date.now()-864e5),dd=day.toISOString().slice(0,10);
+ F=R.filter(r=>(!tab||(tab=='new'?r.f>=dd:r.k==tab))&&(!sv||(r.sv||'').includes(sv))&&(!ct||r[ct])&&(!q||JSON.stringify(r).toLowerCase().includes(q)));
+ shown=0;$('#list').innerHTML='';$('#cnt').textContent='Найдено: '+F.length+' · с e-mail: '+F.filter(r=>r.e).length;more()}
+function card(r){const ct=[];(r.e||'').split(', ').filter(Boolean).forEach(e=>ct.push(`<a href="mailto:${esc(e)}">✉ ${esc(e)}</a>`));
+ (r.ph||'').split(', ').filter(Boolean).forEach(p=>ct.push(`<a href="tel:${esc(p.replace(/[^\d+]/g,''))}">☎ ${esc(p)}</a>`));
+ (r.tg||'').split(', ').filter(Boolean).forEach(t=>ct.push(`<a target="_blank" href="https://t.me/${esc(t.replace('@',''))}">✈ ${esc(t)}</a>`));
+ if(r.si)ct.push(`<a target="_blank" href="${esc(r.si.split(', ')[0])}">🌐 сайт</a>`);
+ return `<div class="c"><div class="top"><div class="t">${esc(r.o||r.t)}</div><span class="sc">★ ${r.s}</span></div>
+ <div class="meta">${esc(r.k)} · ${esc(r.src)}${r.p?' · 👤 '+esc(r.p):''}${r.bu?' · 💰 '+esc(r.bu):''}${r.rg?' · 📍 '+esc(r.rg.slice(0,70)):''}${r.d?' · '+esc(r.d):''}</div>
+ ${r.o&&r.t!=r.o?`<div class="b">${esc(r.t)}</div>`:''}<div class="sv">→ ${esc((r.sv||'').replaceAll('|',', '))}</div>
+ <div class="ct">${ct.join('')||'<span>контакт — по ссылке</span>'}<a target="_blank" href="${esc(r.u)}">🔗 источник</a></div>
+ <details><summary>Подробнее и готовое письмо</summary>${r.b?`<div class="b">${esc(r.b)}</div>`:''}<div class="l">${esc(r.l)}</div><button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent);this.textContent='Скопировано'">Копировать письмо</button></details></div>`}
+function more(){$('#list').insertAdjacentHTML('beforeend',F.slice(shown,shown+60).map(card).join(''));shown+=60;$('#more').hidden=shown>=F.length}
+$('#more').onclick=more;$('#go').onclick=open_;$('#pw').onkeydown=e=>e.key=='Enter'&&open_();
+$('#csv').onclick=()=>{const h=['email','name','company','segment','services','phone','telegram','letter','url'];
+ const q=v=>'"'+String(v||'').replace(/"/g,'""')+'"';const L=[h.join(';')].concat(F.map(r=>[r.e,r.p,r.o||r.t,r.k,(r.sv||'').replaceAll('|',', '),r.ph,r.tg,r.l,r.u].map(q).join(';')));
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+L.join('\n')],{type:'text/csv'}));a.download='leads.csv';a.click()};
+if(localStorage.lhpw){$('#pw').value=localStorage.lhpw;open_()}
+</script></body></html>
